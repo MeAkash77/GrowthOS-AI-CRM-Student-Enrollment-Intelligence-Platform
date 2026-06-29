@@ -135,11 +135,11 @@ cd frontend && pnpm dev
 
 ## 📂 Repository & Contributing
 
-**🔗 GitHub Repository:** [https://github.com/MadsDoodle/GreenCRM](https://github.com/MadsDoodle/GreenCRM)
+**🔗 GitHub Repository:** [https://github.com/MeAkash77/GrowthOS-AI-CRM-Student-Enrollment-Intelligence-Platform](https://github.com/MeAkash77/GrowthOS-AI-CRM-Student-Enrollment-Intelligence-Platform)
 
 Feel free to fork the repository, submit issues, and contribute to the project!
 
 ---
 
 ## 👨‍💻 Author
-**Created by Madhav S Baidya**
+**Created by Akash**
