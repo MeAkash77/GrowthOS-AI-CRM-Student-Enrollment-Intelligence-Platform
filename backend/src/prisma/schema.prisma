@@ -1,0 +1,163 @@
+// This is your Prisma schema file,
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../generated/prisma"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Auth models
+
+model User {
+  id         String         @id @default(uuid())
+  email      String         @unique
+  name       String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  identities UserIdentity[]
+  leads      Lead[]
+  companies  Company[]
+  isDeleted  Boolean        @default(false)
+
+  @@index([email])
+}
+
+// ... UserIdentity and ContactMessage ...
+
+model Lead {
+  id              String   @id @default(uuid())
+  name            String
+  email           String?
+  role            String?
+  company         String?
+  industry        String?
+  status          String   @default("New Lead")
+  accountId       String?
+  accountName     String?
+  website         String?
+  subIndustry     String?
+  description     String?
+  source          String?
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  isDeleted       Boolean  @default(false)
+
+  @@index([userId])
+  @@index([email])
+  @@index([accountId])
+}
+
+model Company {
+  id              Int      @id @default(autoincrement())
+  accountId       String?
+  name            String
+  website         String?
+  industry        String?
+  subIndustry     String?
+  description     String?
+  enrichedData    Json?
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  isDeleted       Boolean  @default(false)
+
+  @@index([userId])
+  @@index([accountId])
+}
+
+
+
+model UserIdentity {
+
+  id         String   @id @default(uuid())
+
+  userId     String
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider   String // 'Google', 'GitHub', 'EmailPassword', 'PhoneOTP', etc.
+
+  providerId String // Provider's unique user ID (or email for email/password)
+
+  metadata   Json? // Provider-specific data (passwordHash, tokens, profile data, etc.)
+
+  createdAt  DateTime @default(now())
+
+  updatedAt  DateTime @updatedAt
+
+  isDeleted  Boolean  @default(false)
+
+
+
+  @@unique([provider, providerId])
+
+  @@index([userId])
+
+}
+
+
+
+model ContactMessage {
+
+  id        Int      @id @default(autoincrement())
+
+  name      String
+
+  email     String
+
+  message   String
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  isDeleted Boolean  @default(false)
+
+
+
+  @@index([email])
+
+}
+
+
+
+model Otp {
+
+  id         String   @id @default(uuid())
+
+  identifier String   // Phone number or email address
+
+  type       String   // 'phone' or 'email'
+
+  otp        String   // Hashed OTP
+
+  expiresAt  DateTime
+
+  attempts   Int      @default(0)
+
+  verified   Boolean  @default(false)
+
+  purpose    String?  // 'login', 'registration', 'password_reset', '2fa', etc.
+
+  createdAt  DateTime @default(now())
+
+  updatedAt  DateTime @updatedAt
+
+  isDeleted  Boolean  @default(false)
+
+
+
+  @@index([identifier, type])
+
+  @@index([expiresAt])
+
+  @@index([identifier, type, verified])
+
+}

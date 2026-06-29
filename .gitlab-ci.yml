@@ -1,0 +1,119 @@
+stages:
+  - tag
+  - deploy
+
+variables:
+  NODE_VERSION: "20"
+  PNPM_VERSION: "8"
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH =~ /^template\/.*/
+    - when: never
+
+create-template-tag:
+  stage: tag
+  rules:
+    - if: $CI_COMMIT_BRANCH =~ /^template\/.*/
+  script:
+    - |
+      if [ -z "$RELEASE" ]; then
+        echo "Error: RELEASE variable is required."
+        exit 1
+      fi
+
+      # Extract first two segments of RELEASE (e.g., 2.3 from 2.3.0.4)
+      DERIVED_TAG_NAME=$(echo "$RELEASE" | cut -d. -f1,2)
+
+      # Default TAG_ENV to 'dev'
+      TAG_ENV="dev"
+
+      # Extract template name from branch (e.g., template/instant-mode-default -> instant-mode-default)
+      TEMPLATE_NAME=${CI_COMMIT_BRANCH#template/}
+      NEW_TAG="${TEMPLATE_NAME}-${TAG_ENV}-${DERIVED_TAG_NAME}"
+
+      echo "Creating/Updating tag: $NEW_TAG from RELEASE: $RELEASE"
+
+      # Configure git
+      git config user.name "system-gitlab-ci"
+      git config user.email "system-gitlab-ci@uptiq.ai"
+
+      # Create or update the tag locally
+      git tag -f "$NEW_TAG" "$CI_COMMIT_SHA"
+
+      # Push the tag to the remote repository
+      git push -f -o ci.skip "https://oauth2:${REPO_ACCESS_TOKEN}@gitlab.com/uptiq-inc-enterprise/workbench-v2/app-builder-starter-template.git" "$NEW_TAG"
+
+deploy-frontend:
+  stage: deploy
+  tags:
+    - shell
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^(instant-mode-default|default)-.*/
+      when: never
+    - if: $CI_COMMIT_TAG
+
+  script:
+    # Set image name and version
+    - |
+      VERSION="${CI_COMMIT_TAG}"
+      if ! [[ "$VERSION" =~ ^[0-9]+$ ]]; then
+        echo "Tag name must be a number (e.g., 123). Got: $VERSION" >&2
+        exit 1
+      fi
+      mkdir -p frontend/public
+      echo "{ \"version\": ${VERSION} }" > frontend/public/version.json
+      echo "Wrote version.json:" && cat frontend/public/version.json
+      IMAGE_NAME=$(echo ${CI_PROJECT_NAME} | tr '[:upper:]' '[:lower:]')
+      FULL_IMAGE_NAME="${APP_BUILDER_PUBLISH_GCP_REGISTRY_HOSTNAME}/${GCP_PROJECT_ID}/${APP_BUILDER_PUBLISH_GCP_REPO_NAME}/${IMAGE_NAME}-frontend:${VERSION}"
+      echo "Frontend version: $VERSION"
+      echo "Image to be used: $FULL_IMAGE_NAME"
+      export VERSION
+      export IMAGE_NAME
+      export FULL_IMAGE_NAME
+
+    # Build Docker image
+    - cd frontend
+    - docker build . -f Dockerfile.publish -t $FULL_IMAGE_NAME
+
+    # Push Docker image
+    - docker push $FULL_IMAGE_NAME
+
+    # Remove docker image once pushed to avoid ENOPSEC memory full errors
+    - docker rmi $FULL_IMAGE_NAME || true
+
+deploy-backend:
+  stage: deploy
+  tags:
+    - shell
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^(instant-mode-default|default)-.*/
+      when: never
+    - if: $CI_COMMIT_TAG
+
+  script:
+    # Set image name and version
+    - |
+      VERSION="${CI_COMMIT_TAG}"
+      if ! [[ "$VERSION" =~ ^[0-9]+$ ]]; then
+        echo "Tag name must be a number (e.g., 123). Got: $VERSION" >&2
+        exit 1
+      fi
+      IMAGE_NAME=$(echo ${CI_PROJECT_NAME} | tr '[:upper:]' '[:lower:]')
+      FULL_IMAGE_NAME="${APP_BUILDER_PUBLISH_GCP_REGISTRY_HOSTNAME}/${GCP_PROJECT_ID}/${APP_BUILDER_PUBLISH_GCP_REPO_NAME}/${IMAGE_NAME}-backend:${VERSION}"
+      echo "Backend version: $VERSION"
+      echo "Image to be used: $FULL_IMAGE_NAME"
+      export VERSION
+      export IMAGE_NAME
+      export FULL_IMAGE_NAME
+
+    # Build Docker image
+    - cd backend
+    - docker build . -f Dockerfile.publish -t $FULL_IMAGE_NAME
+
+    # Push Docker image
+    - docker push $FULL_IMAGE_NAME
+
+    # Remove docker image once pushed to avoid ENOPSEC memory full errors
+    - docker rmi $FULL_IMAGE_NAME || true
